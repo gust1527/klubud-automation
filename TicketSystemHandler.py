@@ -37,7 +37,7 @@ def extract_order_information():
     match_count = 0
     orders_per_page = 100
 
-    while match_count < 300 and page * orders_per_page <= 5000:
+    while match_count < 300 and page * orders_per_page <= 1000:
         # Send GET request to the API
         response = requests.get(
             url,
@@ -98,29 +98,34 @@ def extract_order_information():
         # Generate the file name
         current_date = datetime.date.today().strftime("%d.%m.%Y")
         file_name = f"{product_name.upper().replace(' ', '')}_{formatted_date}(OPDATERET D. {current_date}).xlsx"
-        file_path_with_name = f"{file_path}/{file_name}"
+        file_path_with_name = os.path.join(file_path, file_name)
 
         # Check if the Excel file already exists
-        matching_files = [file for file in os.listdir(file_path) if product_name.replace(' ', '') in file]
+        matching_files = [file for file in os.listdir(file_path) if f"{product_name.upper().replace(' ', '')}_{formatted_date}" in file]
+        print(f"{product_name.upper().replace(' ', '')}_{formatted_date}")
+        print(matching_files)
         if matching_files:
             existing_file = matching_files[0]
             existing_file_path = os.path.join(file_path, existing_file)
-
+            print(existing_file_path)
             # Load the existing workbook
             workbook = load_workbook(existing_file_path)
-            writer = pd.ExcelWriter(existing_file_path, engine='openpyxl')
-            writer.book = workbook
 
             # Get the existing sheet and find the last row with data
             sheet_name = 'Sheet1'
             existing_sheet = workbook[sheet_name]
             last_row = existing_sheet.max_row
 
-            # Append the DataFrame to the existing sheet starting from the last row
-            df.to_excel(writer, sheet_name=sheet_name, index=False, header=False, startrow=last_row + 1, startcol=0)
+            # Insert new rows in the existing sheet
+            data = df.values.tolist()
+            for row in data:
+                existing_sheet.insert_rows(last_row + 1)
+                for col, value in enumerate(row, start=1):
+                    existing_sheet.cell(row=last_row + 1, column=col, value=value)
+                last_row += 1
 
             # Save the workbook
-            writer.close()
+            workbook.save(existing_file_path)
             print(f"Matching orders appended to '{existing_file_path}'")
         else:
             # Save the DataFrame to the specified file path
