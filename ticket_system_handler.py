@@ -1,15 +1,14 @@
 import requests
 import pandas as pd
 import datetime
-from db_handler import initialize_database, get_file_path, set_file_path
-from openpyxl import load_workbook
 import os
+from openpyxl import load_workbook
+import sqlite3
+from db_handler import initialize_database, get_file_path, set_file_path
+from fuzzywuzzy import fuzz
 
-def extract_order_information():
-    # Get input from the user
-    product_name = input("Enter the product name: ")
-    display_value = input("Enter the display value (DD/MM/YY @ HH:MM - HH:MM): ")
-
+def extract_order_information(product_name, display_value):
+    print(f"Extracting order information for '{product_name}'")
     # Check if the file path is already linked to the product name
     file_path = get_file_path(product_name)
 
@@ -19,11 +18,11 @@ def extract_order_information():
         set_file_path(product_name, file_path)
 
     # Extract the date portion from the display value
-    date_value = display_value.split(" @ ")[0]
+    # Extracting the date part from the date-time value coming from Google Calendar
+    formatted_date = display_value.split("T")[0]
 
-    # Format the date value
-    date_obj = datetime.datetime.strptime(date_value, "%d/%m/%y")
-    formatted_date = date_obj.strftime("%d.%m.%Y")
+    # Sheet name
+    sheet_name = product_name
 
     # WooCommerce API endpoint URL
     url = "https://klubud.dk/wp-json/wc/v3/orders"
@@ -37,7 +36,7 @@ def extract_order_information():
     match_count = 0
     orders_per_page = 100
 
-    while match_count < 300 and page * orders_per_page <= 1000:
+    while match_count < 300 and page * orders_per_page <= 5000:
         # Send GET request to the API
         response = requests.get(
             url,
@@ -58,7 +57,9 @@ def extract_order_information():
             for order in orders:
                 line_items = order['line_items']
                 for item in line_items:
-                    if item.get('parent_name') == product_name:
+                    # Use fuzzy matching to find the closest matching product name
+                    item_product_name = item.get('parent_name')
+                    if item_product_name and fuzz.token_set_ratio(product_name, item_product_name) >= 90:
                         meta_data = item.get('meta_data', [])
                         for meta in meta_data:
                             if meta.get('display_key') == 'Dato' and meta.get('display_value') == display_value:
@@ -101,41 +102,12 @@ def extract_order_information():
         file_path_with_name = os.path.join(file_path, file_name)
 
         # Check if the Excel file already exists
-        matching_files = [file for file in os.listdir(file_path) if f"{product_name.upper().replace(' ', '')}_{formatted_date}" in file]
-        print(f"{product_name.upper().replace(' ', '')}_{formatted_date}")
-        print(matching_files)
-        if matching_files:
-            existing_file = matching_files[0]
-            existing_file_path = os.path.join(file_path, existing_file)
-            print(existing_file_path)
-            # Load the existing workbook
-            workbook = load_workbook(existing_file_path)
-
-            # Get the existing sheet and find the last row with data
-            sheet_name = 'Sheet1'
-            existing_sheet = workbook[sheet_name]
-            last_row = existing_sheet.max_row
-
-            # Insert new rows in the existing sheet
-            data = df.values.tolist()
-            for row in data:
-                existing_sheet.insert_rows(last_row + 1)
-                for col, value in enumerate(row, start=1):
-                    existing_sheet.cell(row=last_row + 1, column=col, value=value)
-                last_row += 1
-
-            # Save the workbook
-            workbook.save(existing_file_path)
-            print(f"Matching orders appended to '{existing_file_path}'")
-        else:
+        if not os.path.exists(file_path_with_name):
             # Save the DataFrame to the specified file path
-            df.to_excel(file_path_with_name, index=False)
+            df.to_excel(file_path_with_name, index=False, sheet_name=sheet_name)
             print(f"New file created: '{file_path_with_name}'")
+        else:
+            print(f"'{file_path_with_name}' already exists. Skipping creation.")
+
     else:
         print("No matching order found.")
-
-# Initialize the database (create if not exists)
-initialize_database()
-
-# Example usage
-extract_order_information()
