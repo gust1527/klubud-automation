@@ -1,17 +1,19 @@
-from beautifulsoup4 import BeautifulSoup
+from bs4 import BeautifulSoup
 import requests
 
-# Step 1: Send HTTP request to the URL
-url = 'https://klubub.dk/'
-response = requests.get(url)
 
-# Step 2: Parse the HTML content
+# Define what URL to target
+URL = 'https://www.klubud.dk/varer/oplevelser/'
+
+# Make a request to the URL
+response = requests.get(URL, timeout=5)
+
+# Parse the fetched HTML
 soup = BeautifulSoup(response.content, 'html.parser')
 
-# Step 3: Use BeautifulSoup to find elements
-# For example, find all paragraph 'p' tags
-paragraphs = soup.find_all('p')
+# Find all the paragraph tags
+paragraphs = soup.find_all('div', class_='product-small')
 
-# Print the text from each paragraph
+# Loop through each paragraph and print the text
 for p in paragraphs:
     print(p.get_text())
