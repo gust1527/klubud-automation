@@ -45,7 +45,7 @@ print(event_map[event_to_create_name]['end_time'])
 
 def scroll_to_bottom():
     # Scroll to the bottom of the page
-    SCROLL_PAUSE_TIME = 2
+    SCROLL_PAUSE_TIME = 4
     last_height = driver.execute_script("return document.body.scrollHeight")
 
     # Set a timeout of 15 seconds
@@ -218,3 +218,6 @@ except Exception as e:
     print(f"An unexpected error occurred: {e}")
 finally:
     driver.quit()
+
+if __name__ == '__main__':
+    pass
